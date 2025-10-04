@@ -1,7 +1,8 @@
 """
 AgentLab FastAPI Main Application
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import asyncio
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware

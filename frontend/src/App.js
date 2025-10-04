@@ -3,9 +3,10 @@ import axios from 'axios';
 import io from 'socket.io-client';
 import './App.css';
 
-// Configure API base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Configure base URLs
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; // legacy endpoints (may not be used)
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:8000';
+const MCP_GATEWAY_URL = process.env.REACT_APP_MCP_GATEWAY_URL || 'http://localhost:8000';
 
 function App() {
   // State management
@@ -16,6 +17,8 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('Disconnected');
   const [socket, setSocket] = useState(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [lastComparePair, setLastComparePair] = useState(null);
 
   // Sample code for demo purposes
   const sampleCode = `def fibonacci(n):
@@ -28,9 +31,9 @@ function App() {
 result = fibonacci(10)
 print(f"The 10th Fibonacci number is: {result}")`;
 
-  // Initialize socket connection and fetch experiments
+  // Initialize socket connection and fetch experiments (fetch may no-op post-microservices)
   useEffect(() => {
-    // Initialize socket connection
+    // Initialize socket connection (gateway may not support it; safe to keep for now)
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling']
     });
@@ -61,7 +64,7 @@ print(f"The 10th Fibonacci number is: {result}")`;
 
     setSocket(newSocket);
 
-    // Fetch existing experiments
+    // Fetch existing experiments (optional; gateway may not route this)
     fetchExperiments();
 
     // Cleanup on unmount
@@ -70,64 +73,101 @@ print(f"The 10th Fibonacci number is: {result}")`;
     };
   }, []);
 
-  // Fetch experiments from API
+  // Fetch experiments from legacy API (best-effort)
   const fetchExperiments = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/experiments`);
       setExperiments(response.data.experiments || []);
     } catch (error) {
-      console.error('Error fetching experiments:', error);
+      console.warn('Experiments listing may be unavailable in microservices mode:', error?.message);
     }
   };
 
-  // Handle experiment submission
+  // Handle experiment submission (supports compare mode and MCP Gateway)
   const handleSubmitExperiment = async () => {
     if (isSubmitting) return;
-
     setIsSubmitting(true);
 
     try {
-      let endpoint, payload;
+      if (compareMode) {
+        // Validate inputs
+        if (!codeInput.trim() || !chatInput.trim()) {
+          alert('Please enter both code and chat prompt for Compare Mode.');
+          return;
+        }
 
-      if (selectedMode === 'code-analysis') {
-        if (!codeInput.trim()) {
+        const cerebrasReq = axios.post(
+          `${MCP_GATEWAY_URL}/invoke`,
+          { code: codeInput },
+          { headers: { 'X-Docker-Tool': 'cerebras_coder' } }
+        );
+
+        const llamaReq = axios.post(
+          `${MCP_GATEWAY_URL}/invoke`,
+          { prompt: chatInput },
+          { headers: { 'X-Docker-Tool': 'llama_chat' } }
+        );
+
+        const [cerebrasRes, llamaRes] = await Promise.all([cerebrasReq, llamaReq]);
+
+        const cerebrasExp = {
+          id: cerebrasRes.data.experiment_id,
+          model_used: 'Cerebras-Coder',
+          status: 'pending',
+          input_payload: { code: codeInput },
+          result: null,
+          created_at: new Date().toISOString()
+        };
+        const llamaExp = {
+          id: llamaRes.data.experiment_id,
+          model_used: 'Llama-Chat',
+          status: 'pending',
+          input_payload: { prompt: chatInput },
+          result: null,
+          created_at: new Date().toISOString()
+        };
+
+        setExperiments(prev => [cerebrasExp, llamaExp, ...prev]);
+        setLastComparePair({ left: cerebrasExp, right: llamaExp });
+
+        // Clear inputs
+        setCodeInput('');
+        setChatInput('');
+      } else {
+        // Single mode via MCP Gateway
+        const isCode = selectedMode === 'code-analysis';
+        const payload = isCode ? { code: codeInput } : { prompt: chatInput };
+        const tool = isCode ? 'cerebras_coder' : 'llama_chat';
+
+        if (isCode && !codeInput.trim()) {
           alert('Please enter some Python code to analyze');
           return;
         }
-        endpoint = '/experiments/code-analysis';
-        payload = { code: codeInput };
-      } else {
-        if (!chatInput.trim()) {
+        if (!isCode && !chatInput.trim()) {
           alert('Please enter a chat prompt');
           return;
         }
-        endpoint = '/experiments/chat';
-        payload = { prompt: chatInput };
+
+        const response = await axios.post(
+          `${MCP_GATEWAY_URL}/invoke`,
+          payload,
+          { headers: { 'X-Docker-Tool': tool } }
+        );
+
+        const newExperiment = {
+          id: response.data.experiment_id,
+          model_used: isCode ? 'Cerebras-Coder' : 'Llama-Chat',
+          status: 'pending',
+          input_payload: payload,
+          result: null,
+          created_at: new Date().toISOString()
+        };
+
+        setExperiments(prev => [newExperiment, ...prev]);
+
+        // Clear input fields
+        if (isCode) setCodeInput(''); else setChatInput('');
       }
-
-      const response = await axios.post(`${API_BASE_URL}${endpoint}`, payload);
-      
-      console.log('Experiment created:', response.data);
-
-      // Add the new experiment to the list (it will be updated via WebSocket)
-      const newExperiment = {
-        id: response.data.experiment_id,
-        model_used: selectedMode === 'code-analysis' ? 'Cerebras-Coder' : 'Llama-Chat',
-        status: 'pending',
-        input_payload: payload,
-        result: null,
-        created_at: new Date().toISOString()
-      };
-
-      setExperiments(prev => [newExperiment, ...prev]);
-
-      // Clear input fields
-      if (selectedMode === 'code-analysis') {
-        setCodeInput('');
-      } else {
-        setChatInput('');
-      }
-
     } catch (error) {
       console.error('Error creating experiment:', error);
       alert('Error creating experiment: ' + (error.response?.data?.detail || error.message));
@@ -179,55 +219,98 @@ print(f"The 10th Fibonacci number is: {result}")`;
         {/* Experiment Creation */}
         <section className="experiment-creation">
           <h2>Create New Experiment</h2>
-          
-          {/* Mode Selection */}
-          <div className="mode-selection">
-            <button
-              className={`mode-button ${selectedMode === 'code-analysis' ? 'active' : ''}`}
-              onClick={() => setSelectedMode('code-analysis')}
-            >
-              🔍 Code Analysis (Cerebras)
-            </button>
-            <button
-              className={`mode-button ${selectedMode === 'chat' ? 'active' : ''}`}
-              onClick={() => setSelectedMode('chat')}
-            >
-              💬 Chat (Llama)
-            </button>
+
+          {/* Compare Mode Toggle */}
+          <div className="compare-toggle" style={{ marginBottom: 12 }}>
+            <label>
+              <input type="checkbox" checked={compareMode} onChange={(e) => setCompareMode(e.target.checked)} />
+              {' '}Enable Compare Mode
+            </label>
           </div>
+          
+          {/* Mode Selection (hidden in compare mode) */}
+          {!compareMode && (
+            <div className="mode-selection">
+              <button
+                className={`mode-button ${selectedMode === 'code-analysis' ? 'active' : ''}`}
+                onClick={() => setSelectedMode('code-analysis')}
+              >
+                🔍 Code Analysis (Cerebras)
+              </button>
+              <button
+                className={`mode-button ${selectedMode === 'chat' ? 'active' : ''}`}
+                onClick={() => setSelectedMode('chat')}
+              >
+                💬 Chat (Llama)
+              </button>
+            </div>
+          )}
 
           {/* Input Area */}
           <div className="input-area">
-            {selectedMode === 'code-analysis' ? (
-              <div className="code-input-section">
-                <div className="input-header">
-                  <label htmlFor="code-input">Python Code to Analyze:</label>
-                  <button onClick={loadSampleCode} className="sample-button">
-                    Load Sample Code
-                  </button>
+            {compareMode ? (
+              <div className="compare-inputs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="code-input-section">
+                  <div className="input-header">
+                    <label htmlFor="code-input">Python Code to Analyze:</label>
+                    <button onClick={loadSampleCode} className="sample-button">
+                      Load Sample Code
+                    </button>
+                  </div>
+                  <textarea
+                    id="code-input"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value)}
+                    placeholder="Enter your Python code here..."
+                    rows={12}
+                    className="code-textarea"
+                  />
                 </div>
-                <textarea
-                  id="code-input"
-                  value={codeInput}
-                  onChange={(e) => setCodeInput(e.target.value)}
-                  placeholder="Enter your Python code here..."
-                  rows={12}
-                  className="code-textarea"
-                />
+                <div className="chat-input-section">
+                  <label htmlFor="chat-input">Chat Prompt:</label>
+                  <input
+                    id="chat-input"
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Enter your question or prompt..."
+                    className="chat-input"
+                    onKeyPress={(e) => e.key === 'Enter' && handleSubmitExperiment()}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="chat-input-section">
-                <label htmlFor="chat-input">Chat Prompt:</label>
-                <input
-                  id="chat-input"
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Enter your question or prompt..."
-                  className="chat-input"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSubmitExperiment()}
-                />
-              </div>
+              selectedMode === 'code-analysis' ? (
+                <div className="code-input-section">
+                  <div className="input-header">
+                    <label htmlFor="code-input">Python Code to Analyze:</label>
+                    <button onClick={loadSampleCode} className="sample-button">
+                      Load Sample Code
+                    </button>
+                  </div>
+                  <textarea
+                    id="code-input"
+                    value={codeInput}
+                    onChange={(e) => setCodeInput(e.target.value)}
+                    placeholder="Enter your Python code here..."
+                    rows={12}
+                    className="code-textarea"
+                  />
+                </div>
+              ) : (
+                <div className="chat-input-section">
+                  <label htmlFor="chat-input">Chat Prompt:</label>
+                  <input
+                    id="chat-input"
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Enter your question or prompt..."
+                    className="chat-input"
+                    onKeyPress={(e) => e.key === 'Enter' && handleSubmitExperiment()}
+                  />
+                </div>
+              )
             )}
           </div>
 
@@ -237,9 +320,51 @@ print(f"The 10th Fibonacci number is: {result}")`;
             disabled={isSubmitting}
             className="submit-button"
           >
-            {isSubmitting ? '🔄 Running Experiment...' : '🚀 Run Experiment'}
+            {isSubmitting ? '🔄 Running...' : compareMode ? '🆚 Run Compare' : '🚀 Run Experiment'}
           </button>
         </section>
+
+        {/* Compare Results (last run) */}
+        {lastComparePair && (
+          <section className="compare-results" style={{ marginTop: 24 }}>
+            <h2>Compare Results</h2>
+            <div className="experiments-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {[lastComparePair.left, lastComparePair.right].map((experiment) => (
+                <div key={experiment.id} className="experiment-card">
+                  <div className="experiment-header">
+                    <div className="experiment-model">
+                      {experiment.model_used === 'Cerebras-Coder' ? '🔍' : '💬'} {experiment.model_used}
+                    </div>
+                    <div 
+                      className="experiment-status"
+                      style={{ color: getStatusColor(experiment.status) }}
+                    >
+                      {experiment.status.toUpperCase()}
+                    </div>
+                  </div>
+                  <div className="experiment-input">
+                    <strong>Input:</strong>
+                    <div className="input-preview">
+                      {experiment.input_payload?.code || experiment.input_payload?.prompt || 'N/A'}
+                    </div>
+                  </div>
+                  {experiment.result && (
+                    <div className="experiment-result">
+                      <strong>Result:</strong>
+                      <div className="result-content">
+                        {experiment.result}
+                      </div>
+                    </div>
+                  )}
+                  <div className="experiment-footer">
+                    <small>Created: {formatTimestamp(experiment.created_at)}</small>
+                    <small>ID: {experiment.id}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Experiments List */}
         <section className="experiments-list">

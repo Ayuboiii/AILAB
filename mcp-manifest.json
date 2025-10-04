@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "cerebras_coder",
+      "target": {
+        "type": "http",
+        "url": "http://cerebras-service:8000/invoke",
+        "method": "POST"
+      }
+    },
+    {
+      "name": "llama_chat",
+      "target": {
+        "type": "http",
+        "url": "http://llama-service:8000/invoke",
+        "method": "POST"
+      }
+    }
+  ]
+}

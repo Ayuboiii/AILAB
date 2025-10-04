@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentlab.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/agentlab.db")
 
 # Create SQLAlchemy engine
 engine = create_engine(

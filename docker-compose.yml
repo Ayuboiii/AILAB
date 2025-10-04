@@ -1,13 +1,47 @@
 version: '3.8'
 
 services:
-  # AgentLab Backend Service
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+  # MCP Gateway - routes requests to microservices based on X-Docker-Tool header
+  mcp-gateway:
+    image: docker/mcp-gateway:latest
     ports:
       - "8000:8000"
+    volumes:
+      - ./mcp-manifest.json:/manifest/mcp-manifest.json:ro
+    environment:
+      - MCP_MANIFEST=/manifest/mcp-manifest.json
+    depends_on:
+      - cerebras-service
+      - llama-service
+    restart: unless-stopped
+    networks:
+      - agentlab-network
+
+  # Cerebras microservice
+  cerebras-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cerebras
+    environment:
+      - DATABASE_URL=sqlite:///./data/agentlab.db
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agentlab-network
+
+  # Llama microservice
+  llama-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.llama
     environment:
       - DATABASE_URL=sqlite:///./data/agentlab.db
       - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
@@ -31,7 +65,7 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      - mcp-gateway
     restart: unless-stopped
     networks:
       - agentlab-network
