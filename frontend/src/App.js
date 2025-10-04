@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import io from 'socket.io-client';
 import './App.css';
 
 // Configure base URLs
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; // legacy endpoints (may not be used)
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:8000';
 const MCP_GATEWAY_URL = process.env.REACT_APP_MCP_GATEWAY_URL || 'http://localhost:8000';
+const POLL_INTERVAL_MS = parseInt(process.env.REACT_APP_POLL_INTERVAL_MS || '3000', 10);
 
 function App() {
   // State management
@@ -15,8 +14,6 @@ function App() {
   const [codeInput, setCodeInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('Disconnected');
-  const [socket, setSocket] = useState(null);
   const [compareMode, setCompareMode] = useState(false);
   const [lastComparePair, setLastComparePair] = useState(null);
 
@@ -31,19 +28,15 @@ function App() {
 result = fibonacci(10)
 print(f"The 10th Fibonacci number is: {result}")`;
 
-  // New useEffect hook with polling (WebSockets removed in favor of gateway-friendly polling)
+  // Poll experiments periodically using the MCP Gateway
   useEffect(() => {
-    setConnectionStatus('Polling');
-
-    // Fetch initial data
+    // Initial fetch
     fetchExperiments();
 
-    // Set up polling to refresh data every 3 seconds
     const interval = setInterval(() => {
       fetchExperiments();
-    }, 3000);
+    }, POLL_INTERVAL_MS);
 
-    // Clean up the interval when the component unmounts
     return () => clearInterval(interval);
   }, []);
 
@@ -185,11 +178,6 @@ print(f"The 10th Fibonacci number is: {result}")`;
       <header className="app-header">
         <h1>🧪 AgentLab</h1>
         <p>AI Experiment Platform powered by Cerebras & Llama</p>
-        <div className="connection-status">
-          Status: <span style={{ color: connectionStatus === 'Connected' ? '#22c55e' : '#ef4444' }}>
-            {connectionStatus}
-          </span>
-        </div>
       </header>
 
       {/* Main Content */}

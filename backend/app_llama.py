@@ -79,3 +79,19 @@ async def get_experiments(db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error fetching experiments: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching experiments: {str(e)}")
+
+@app.get("/experiments/{experiment_id}")
+async def get_experiment(experiment_id: int, db: Session = Depends(get_db)):
+    """
+    Get a single experiment by ID.
+    """
+    try:
+        exp = db.query(Experiment).filter(Experiment.id == experiment_id).first()
+        if not exp:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        return exp.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching experiment {experiment_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching experiment: {str(e)}")
