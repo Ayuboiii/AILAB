@@ -64,3 +64,18 @@ async def invoke(request: InvokeRequest, background_tasks: BackgroundTasks, db: 
     except Exception as e:
         logger.exception("Error handling /invoke in llama service")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/experiments")
+async def get_experiments(db: Session = Depends(get_db)):
+    """
+    Get all experiments from the database.
+    This acts as the aggregator for the system.
+    """
+    try:
+        experiments = db.query(Experiment).order_by(Experiment.created_at.desc()).all()
+        return {
+            "experiments": [exp.to_dict() for exp in experiments]
+        }
+    except Exception as e:
+        logger.error(f"Error fetching experiments: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching experiments: {str(e)}")

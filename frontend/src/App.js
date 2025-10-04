@@ -31,55 +31,33 @@ function App() {
 result = fibonacci(10)
 print(f"The 10th Fibonacci number is: {result}")`;
 
-  // Initialize socket connection and fetch experiments (fetch may no-op post-microservices)
+  // New useEffect hook with polling (WebSockets removed in favor of gateway-friendly polling)
   useEffect(() => {
-    // Initialize socket connection (gateway may not support it; safe to keep for now)
-    const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling']
-    });
+    setConnectionStatus('Polling');
 
-    newSocket.on('connect', () => {
-      console.log('Connected to WebSocket');
-      setConnectionStatus('Connected');
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket');
-      setConnectionStatus('Disconnected');
-    });
-
-    newSocket.on('connected', (data) => {
-      console.log('Server connection confirmed:', data);
-    });
-
-    newSocket.on('experiment_updated', (experimentData) => {
-      console.log('Experiment updated:', experimentData);
-      // Update the specific experiment in the list
-      setExperiments(prev => 
-        prev.map(exp => 
-          exp.id === experimentData.id ? experimentData : exp
-        )
-      );
-    });
-
-    setSocket(newSocket);
-
-    // Fetch existing experiments (optional; gateway may not route this)
+    // Fetch initial data
     fetchExperiments();
 
-    // Cleanup on unmount
-    return () => {
-      newSocket.close();
-    };
+    // Set up polling to refresh data every 3 seconds
+    const interval = setInterval(() => {
+      fetchExperiments();
+    }, 3000);
+
+    // Clean up the interval when the component unmounts
+    return () => clearInterval(interval);
   }, []);
 
-  // Fetch experiments from legacy API (best-effort)
+  // New fetchExperiments function that goes through the gateway
   const fetchExperiments = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/experiments`);
+      const response = await axios.post(
+        `${MCP_GATEWAY_URL}/invoke`,
+        {},
+        { headers: { 'X-Docker-Tool': 'list_experiments' } }
+      );
       setExperiments(response.data.experiments || []);
     } catch (error) {
-      console.warn('Experiments listing may be unavailable in microservices mode:', error?.message);
+      console.error('Error fetching experiments:', error);
     }
   };
 

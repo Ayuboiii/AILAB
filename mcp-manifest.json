@@ -16,6 +16,14 @@
         "url": "http://llama-service:8000/invoke",
         "method": "POST"
       }
+    },
+    {
+      "name": "list_experiments",
+      "target": {
+        "type": "http",
+        "url": "http://llama-service:8000/experiments",
+        "method": "GET"
+      }
     }
   ]
 }
