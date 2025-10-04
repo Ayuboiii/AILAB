@@ -1,9 +1,11 @@
 version: '3.8'
 
 services:
-  # MCP Gateway - routes requests to microservices based on X-Docker-Tool header
+  # Custom HTTP MCP Gateway - routes requests to microservices based on X-Docker-Tool header
   mcp-gateway:
-    image: docker/mcp-gateway:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gateway
     ports:
       - "8000:8000"
     volumes:
