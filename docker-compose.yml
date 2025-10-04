@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # AgentLab Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/agentlab.db
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
+    volumes:
+      - backend_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agentlab-network
+
+  # Frontend Service (for production deployment)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - agentlab-network
+
+volumes:
+  backend_data:
+    driver: local
+
+networks:
+  agentlab-network:
+    driver: bridge
