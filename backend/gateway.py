@@ -62,7 +62,7 @@ def substitute_path_params(url: str, path_params: Optional[Dict[str, Any]]) -> s
     return url
 
 
-@app.post("/invoke")
+@app.api_route("/invoke", methods=["POST", "GET", "OPTIONS"])
 async def invoke(request: Request):
     tool_name = request.headers.get("X-Docker-Tool")
     if not tool_name:
@@ -76,11 +76,17 @@ async def invoke(request: Request):
     if not url:
         raise HTTPException(status_code=500, detail="Tool target URL not configured")
 
+    logger.info("/invoke: incoming=%s tool=%s -> upstream %s %s", request.method, tool_name, method, url)
+
     payload: Any = None
-    try:
-        # May be empty body
-        payload = await request.json()
-    except Exception:
+    if request.method.upper() == "POST":
+        try:
+            # May be empty body
+            payload = await request.json()
+        except Exception:
+            payload = None
+    else:
+        # For GET/OPTIONS to /invoke, accept lack of payload
         payload = None
 
     # Optional path parameter substitution

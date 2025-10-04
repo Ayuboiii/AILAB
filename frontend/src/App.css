@@ -451,15 +451,125 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #0f0f10;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #333;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #444;
+}
+
+/* === Cyberpunk Overrides === */
+:root {
+  color-scheme: dark;
+}
+body {
+  background: #0d0d0d !important;
+  color: #e5e7eb;
+  font-family: 'Inter', 'JetBrains Mono', monospace, system-ui, sans-serif;
+}
+.app-header {
+  background: rgba(18, 18, 18, 0.9) !important;
+  border-bottom: 1px solid rgba(0,255,247,0.15) !important;
+  box-shadow: 0 4px 20px rgba(0,255,247,0.08) !important;
+}
+.app-header h1 {
+  background: none !important;
+  -webkit-text-fill-color: unset !important;
+  color: #00fff7 !important;
+  text-shadow: 0 0 12px rgba(0,255,247,0.6);
+}
+.app-header p {
+  color: #9ca3af !important;
+}
+.app-main {
+  color: #e5e7eb;
+}
+.experiment-creation,
+.experiments-list {
+  background: rgba(18, 18, 18, 0.85) !important;
+  border: 1px solid rgba(162,89,255,0.15) !important;
+  box-shadow: 0 0 18px rgba(162,89,255,0.08) !important;
+}
+.experiment-creation h2, .experiments-list h2 { color: #e5e7eb !important; }
+.mode-button { background: #121212; color: #9ca3af; border-color: rgba(255,255,255,0.06); }
+.mode-button.active { background: linear-gradient(135deg,#00fff7,#a259ff); box-shadow: 0 0 18px rgba(0,255,247,0.2); }
+.input-header label { color: #e5e7eb; }
+.sample-button { background: #111827; color: #9ca3af; border-color: #1f2937; }
+.sample-button:hover { background: #1f2937; color: #e5e7eb; }
+.code-textarea, .chat-input { background: #0f0f10; color: #e5e7eb; border-color: #1f1f1f; }
+.code-textarea:focus, .chat-input:focus { border-color: #00fff7; box-shadow: 0 0 0 3px rgba(0,255,247,0.12); }
+.submit-button { background: linear-gradient(135deg,#00fff7,#a259ff) !important; box-shadow: 0 0 22px rgba(0,255,247,0.18) !important; }
+.experiment-card { background: #121212; border-color: #1f1f1f; }
+.experiment-model { color: #e5e7eb; }
+.input-preview { background: #0f0f10; color: #9ca3af; }
+.result-content { background: #101017; color: #e5e7eb; border-left-color: #00fff7; }
+.app-footer { background: rgba(18,18,18,0.9); border-top: 1px solid rgba(0,255,247,0.12); color: #9ca3af; }
+
+/* Neon helpers */
+.neon-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  border-radius: 16px;
+}
+
+/* Modal styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-content {
+  width: min(900px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  background: #0f0f10;
+  color: #e5e7eb;
+  border: 1px solid rgba(0,255,247,0.25);
+  box-shadow: 0 0 24px rgba(0,255,247,0.2);
+  border-radius: 16px;
+  padding: 20px;
+}
+.modal-close-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #e5e7eb;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.modal-close-btn:hover {
+  border-color: #00fff7;
+  box-shadow: 0 0 14px rgba(0,255,247,0.2);
+}
+.neon-border {
+  border: 1px solid rgba(0,255,247,0.25);
+  box-shadow: 0 0 14px rgba(0,255,247,0.2), inset 0 0 6px rgba(0,255,247,0.1);
+}
+.neon-btn {
+  background: radial-gradient(100% 100% at 0% 0%, rgba(0,255,247,0.24), rgba(0,255,247,0.08));
+  color: #00fff7;
+  border: 1px solid rgba(0,255,247,0.4);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.neon-btn:hover {
+  box-shadow: 0 0 18px rgba(0,255,247,0.3);
+}
+.badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid;
+  background: #0f0f10;
 }

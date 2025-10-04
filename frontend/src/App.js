@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
+import Dashboard from './Dashboard';
 
 // Configure base URLs
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'; // legacy endpoints (may not be used)
@@ -10,6 +11,12 @@ const POLL_INTERVAL_MS = parseInt(process.env.REACT_APP_POLL_INTERVAL_MS || '300
 function App() {
   // State management
   const [experiments, setExperiments] = useState([]);
+  const [currentView, setCurrentView] = useState('experiments'); // 'experiments' | 'dashboard'
+  const [modalExperiment, setModalExperiment] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Short-burst refresher after creating experiments to ensure quick updates
+  const burstIntervalRef = useRef(null);
+  const burstTimeoutRef = useRef(null);
   const [selectedMode, setSelectedMode] = useState('code-analysis');
   const [codeInput, setCodeInput] = useState('');
   const [chatInput, setChatInput] = useState('');
@@ -51,6 +58,23 @@ print(f"The 10th Fibonacci number is: {result}")`;
       setExperiments(response.data.experiments || []);
     } catch (error) {
       console.error('Error fetching experiments:', error);
+    }
+  };
+
+  // Kick off a short polling burst after actions
+  const bumpRefresh = (durationMs = 12000, intervalMs = 1500) => {
+    try {
+      if (burstIntervalRef.current) clearInterval(burstIntervalRef.current);
+      if (burstTimeoutRef.current) clearTimeout(burstTimeoutRef.current);
+      // immediate fetch then interval
+      fetchExperiments();
+      burstIntervalRef.current = setInterval(fetchExperiments, intervalMs);
+      burstTimeoutRef.current = setTimeout(() => {
+        if (burstIntervalRef.current) clearInterval(burstIntervalRef.current);
+        burstIntervalRef.current = null;
+      }, durationMs);
+    } catch (e) {
+      // no-op
     }
   };
 
@@ -101,6 +125,9 @@ print(f"The 10th Fibonacci number is: {result}")`;
         setExperiments(prev => [cerebrasExp, llamaExp, ...prev]);
         setLastComparePair({ left: cerebrasExp, right: llamaExp });
 
+        // Proactively refresh a few times to capture updates
+        bumpRefresh();
+
         // Clear inputs
         setCodeInput('');
         setChatInput('');
@@ -135,6 +162,9 @@ print(f"The 10th Fibonacci number is: {result}")`;
         };
 
         setExperiments(prev => [newExperiment, ...prev]);
+
+        // Proactively refresh a few times to capture updates
+        bumpRefresh();
 
         // Clear input fields
         if (isCode) setCodeInput(''); else setChatInput('');
@@ -176,12 +206,22 @@ print(f"The 10th Fibonacci number is: {result}")`;
     <div className="App">
       {/* Header */}
       <header className="app-header">
-        <h1>🧪 AgentLab</h1>
-        <p>AI Experiment Platform powered by Cerebras & Llama</p>
+        <h1>⚡ AgentLabX</h1>
+        <p>AI Experimentation Platform</p>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <button className="neon-btn" onClick={() => setCurrentView('experiments')}>Experiments</button>
+          <button className="neon-btn" onClick={() => setCurrentView('dashboard')}>Dashboard</button>
+        </div>
       </header>
 
       {/* Main Content */}
       <main className="app-main">
+        {currentView === 'dashboard' ? (
+          <section className="experiments-list neon-card neon-border" style={{ padding: 16 }}>
+            <Dashboard />
+          </section>
+        ) : (
+        <> 
         {/* Experiment Creation */}
         <section className="experiment-creation">
           <h2>Create New Experiment</h2>
@@ -322,9 +362,12 @@ print(f"The 10th Fibonacci number is: {result}")`;
                       </div>
                     </div>
                   )}
-                  <div className="experiment-footer">
-                    <small>Created: {formatTimestamp(experiment.created_at)}</small>
-                    <small>ID: {experiment.id}</small>
+                  <div className="experiment-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <small>Created: {formatTimestamp(experiment.created_at)}</small>
+                      <small style={{ marginLeft: 8 }}>ID: {experiment.id}</small>
+                    </div>
+                    <button className="neon-btn" onClick={() => { setModalExperiment(experiment); setIsModalOpen(true); }}>View Details</button>
                   </div>
                 </div>
               ))}
@@ -381,6 +424,22 @@ print(f"The 10th Fibonacci number is: {result}")`;
             </div>
           )}
         </section>
+        {/* Modal Detail View */}
+        {isModalOpen && modalExperiment && (
+          <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ color: '#00fff7' }}>Experiment #{modalExperiment.id}</h3>
+                <button className="modal-close-btn" onClick={() => setIsModalOpen(false)}>Close</button>
+              </div>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+{JSON.stringify(modalExperiment, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+        </>
+        )}
       </main>
 
       {/* Footer */}
